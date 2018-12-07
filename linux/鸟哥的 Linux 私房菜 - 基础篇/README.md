@@ -2,6 +2,12 @@
 
 This file is written to learn 《鸟哥的 Linux 私房菜 - 基础篇》 note.
 
+## 强制更新 Linux 内核的分区表信息
+
+```markdown
+[root@study ~]# partprobe -s
+```
+
 ## 内存空间 (swap) 建立
 
 ### 使用硬盘分区建立 swap
@@ -136,8 +142,11 @@ parted: 同时支持 GPT 和 MBR 的指令。
     新增分割：mkpart [primary|logical|extended] [ext4|vfat|xfs] 開始 結束
     顯示分割：print
     刪除分割：rm [partition]
+```
 
 範例一：以 parted 列出目前本機的分割表資料
+
+```markdown
 [root@study ~]# parted /dev/vda print
 Model: Virtio Block Device (virtblk)         <==磁碟介面與型號
 Disk /dev/vda: 42.9GB                        <==磁碟檔名與容量
@@ -152,4 +161,41 @@ Number  Start   End     Size    File system     Name                  Flags
  4      33.3GB  34.4GB  1074MB  xfs             Linux filesystem
  5      34.4GB  35.4GB  1074MB  ext4            Microsoft basic data
  6      35.4GB  36.0GB  537MB   linux-swap(v1)  Linux swap
- ```
+```
+
+```markdown
+[root@study ~]# parted /dev/vda unit mb print
+```
+
+範例二：將 /dev/sda 這個原本的 MBR 分割表變成 GPT 分割表！(危險！危險！勿亂搞！無法復原！)
+
+```markdown
+[root@study ~]# parted /dev/sda print
+Model: ATA QEMU HARDDISK (scsi)
+Disk /dev/sda: 2148MB
+Sector size (logical/physical): 512B/512B
+Partition Table: msdos    # 確實顯示的是 MBR 的 msdos 格式喔！
+
+[root@study ~]# parted /dev/sda mklabel gpt
+Warning: The existing disk label on /dev/sda will be destroyed and all data on 
+this disk will be lost. Do you want to continue?
+Yes/No? y
+
+[root@study ~]# parted /dev/sda print
+# 你應該就會看到變成 gpt 的模樣！只是...後續的分割就全部都死掉了！
+```
+
+範例三：建立一個約為 512MB 容量的分割槽
+
+```markdown
+[root@study ~]# parted /dev/vda mkpart primary fat32 36.0GB 36.5GB
+[root@study ~]# partprobe -s
+[root@study ~]# lsblk /dev/vda7
+[root@study ~]# mkfs -t vfat /dev/vda7
+[root@study ~]# blkid /dev/vda7
+/dev/vda7: SEC_TYPE="msdos" UUID="6032-BF38" TYPE="vfat"
+
+[root@study ~]# nano /etc/fstab  # 添加自动挂载
+UUID="6032-BF38"  /data/win  vfat  defaults   0  0
+```
+
