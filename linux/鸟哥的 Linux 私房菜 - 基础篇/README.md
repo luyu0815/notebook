@@ -109,7 +109,7 @@ This file is written to learn 《鸟哥的 Linux 私房菜 - 基础篇》 note.
     [root@study ~]# swapon -s
     Filename                                Type            Size    Used    Priority
     /dev/dm-1                               partition       1048572 100380  -1
-    # 確定已經回復到原本的狀態了！然後準備來測試！！
+    # 確定已經回復到原本的狀態了！然後準備來測試！
 
     [root@study ~]# swapon -a
     [root@study ~]# swapon -s
@@ -199,3 +199,38 @@ Yes/No? y
 UUID="6032-BF38"  /data/win  vfat  defaults   0  0
 ```
 
+## 文件、文件系统的压缩、打包与备份
+
+### 打包指令：tar
+
+```markdown
+[dmtsai@study ~]$ tar [-z|-j|-J] [cv] [-f new-filename] filename  <==打包與壓縮
+[dmtsai@study ~]$ tar [-z|-j|-J] [tv] [-f filename]               <==察看檔名
+[dmtsai@study ~]$ tar [-z|-j|-J] [xv] [-f filename] [-C folder]   <==解壓縮
+選項與參數：
+-c: 建立打包檔案，可搭配 -v 來察看過程中被打包的檔名(filename)
+-t: 察看打包檔案的內容含有哪些檔名，重點在察看『檔名』就是了；
+-x: 解打包或解壓縮的功能，可以搭配 -C (大寫) 在特定目錄解開
+    特別留意的是， -c, -t, -x 不可同時出現在一串指令列中。
+-z: 透過 gzip  的支援進行壓縮/解壓縮：此時檔名最好為 *.tar.gz
+-j: 透過 bzip2 的支援進行壓縮/解壓縮：此時檔名最好為 *.tar.bz2
+-J: 透過 xz    的支援進行壓縮/解壓縮：此時檔名最好為 *.tar.xz
+    特別留意， -z, -j, -J 不可以同時出現在一串指令列中
+-v: 在壓縮/解壓縮的過程中，將正在處理的檔名顯示出來！
+-f filename: -f 後面要立刻接要被處理的檔名！建議 -f 單獨寫一個選項囉！(比較不會忘記)
+-C 目錄:      這個選項用在解壓縮，若要在特定目錄解壓縮，可以使用這個選項。
+
+其他後續練習會使用到的選項介紹：
+-p(小寫): 保留備份資料的原本權限與屬性，常用於備份(-c)重要的設定檔
+-P(大寫): 保留絕對路徑，亦即允許備份資料中含有根目錄存在之意；
+--exclude=FILE: 在壓縮的過程中，不要將 FILE 打包！
+```
+
+#### 最常用的命令：
+
+```markdown
+luyu@ubuntu:~$ tar -cjf  filename.tar.bz2 files/folder   # 压缩
+luyu@ubuntu:~$ tar -cJf  filename.tar.xz files/folder    # 压缩
+luyu@ubuntu:~$ tar -jtvf filename.tar.bz2                # 查询
+luyu@ubuntu:~$ tar -xf   filename.tar.bz2 -C new-folder  # 特定目录解压，解压格式自动识别
+```
