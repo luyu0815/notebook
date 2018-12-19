@@ -199,7 +199,7 @@ Yes/No? y
 UUID="6032-BF38"  /data/win  vfat  defaults   0  0
 ```
 
-## 文件、文件系统的压缩、打包与备份
+## 文件和文件系统的压缩、打包与备份
 
 ### 打包指令：tar
 
@@ -234,3 +234,239 @@ luyu@ubuntu:~$ tar -cJf  filename.tar.xz files/folder    # 压缩
 luyu@ubuntu:~$ tar -jtvf filename.tar.bz2                # 查询
 luyu@ubuntu:~$ tar -xf   filename.tar.bz2 -C new-folder  # 特定目录解压，解压格式自动识别
 ```
+
+#### tar 备份 /etc 的资料在另外一部系统上复原，无法正常登系统
+
+原因是因为 /etc/shadow 这个密码文件的 SELinux 类型在还原的时候被更改了，导致登陆系统程序无法顺利存取。
+
+处理方法：
+
+  - 在第一次复原系统后不要立即开机，先使用 restorecon -Rv /etc 自动修复一下 SELinux 的类型即可。
+  - 透过各种方式进入系统，建立 /。autorelabel 文件，重新开机后系统会自动修复 SELinux 的类型，并且再次重新开机，之后就正常。
+  - 救援方式登陆系统，修改 /etc/selinux/comfig 文件，将 SELinux 改成 permissive 模式，重新开机后系统就正常了。
+
+### xfsdump 备份完整的文件系统，xfsrestore 文件系统还原
+
+- xfsdump xfsrestore 只能备份还原 xfs 格式的文件系统。
+
+#### xfsdump 备份文件系统
+
+```markdown
+[root@study ~]# xfsdump [-L S_label] [-M M_label] [-l #] [-f 備份檔] 待備份資料
+[root@study ~]# xfsdump -I
+選項與參數：
+-L  ：xfsdump 會紀錄每次備份的 session 標頭，這裡可以填寫針對此檔案系統的簡易說明
+-M  ：xfsdump 可以紀錄儲存媒體的標頭，這裡可以填寫此媒體的簡易說明
+-l  ：是 L 的小寫，就是指定等級～有 0~9 共 10 個等級喔！ (預設為 0，即完整備份)
+-f  ：有點類似 tar 啦！後面接產生的檔案，亦可接例如 /dev/st0 裝置檔名或其他一般檔案檔名等
+-I  ：從 /var/lib/xfsdump/inventory 列出目前備份的資訊狀態
+
+[root@study ~]# xfsdump -l 0 -L boot_all -M boot_all -f /srv/boot.dump /boot
+[root@study ~]# ll /var/lib/xfsdump/inventory
+[root@study ~]# xfsdump -I
+[root@study ~]# xfsdump -l 1 -L boot_2 -M boot_2 -f /srv/boot.dump1 /boot  # 增量备份
+[root@study ~]# xfsdump -I
+```
+
+#### xfsrestore 还原文件系统
+
+```markdown
+[root@study ~]# xfsrestore -I                                       <==用來察看備份檔案資料
+[root@study ~]# xfsrestore [-f 備份檔] [-L S_label] [-s] 待復原目錄 <==單一檔案全系統復原
+[root@study ~]# xfsrestore [-f 備份檔] -r 待復原目錄                <==透過累積備份檔來復原系統
+[root@study ~]# xfsrestore [-f 備份檔] -i 待復原目錄                <==進入互動模式
+選項與參數：
+-I  ：跟 xfsdump 相同的輸出！可查詢備份資料，包括 Label 名稱與備份時間等
+-f  ：後面接的就是備份檔！企業界很有可能會接 /dev/st0 等磁帶機！我們這裡接檔名！
+-L  ：就是 Session 的 Label name 喔！可用 -I 查詢到的資料，在這個選項後輸入！
+-s  ：需要接某特定目錄，亦即僅復原某一個檔案或目錄之意！
+-r  ：如果是用檔案來儲存備份資料，那這個就不需要使用。如果是一個磁帶內有多個檔案，
+      需要這東西來達成累積復原
+-i  ：進入互動模式，進階管理員使用的！
+
+# 1. 直接將資料給它覆蓋回去即可！
+[root@study ~]# xfsrestore -f /srv/boot.dump -L boot_all /boot
+
+# 2. 將備份資料在 /tmp/boot 底下解開！
+[root@study ~]# mkdir /tmp/boot
+[root@study ~]# xfsrestore -f /srv/boot.dump -L boot_all /tmp/boot
+[root@study ~]# du -sm /boot /tmp/boot
+109     /boot
+99      /tmp/boot
+# 咦！兩者怎麼大小不一致呢？沒關係！我們來檢查看看！
+
+[root@study ~]# diff -r /boot /tmp/boot
+Only in /boot: testing.img
+# 看吧！原來是 /boot 我們有增加過一個檔案啦！
+```
+
+```markdown
+# 僅復原備份檔內的 grub2 到 /tmp/boot2/ 裡頭去！
+[root@study ~]# mkdir /tmp/boot2
+[root@study ~]# xfsrestore -f /srv/boot.dump -L boot_all -s grub2 /tmp/boot2
+```
+
+- 仅还原部分文件的 xfsrestore 互动模式
+
+```markdown
+root@study ~]# mkdir /tmp/boot3
+[root@study ~]# xfsrestore -f /srv/boot.dump -i /tmp/boot3
+ ========================== subtree selection dialog ==========================
+
+the following commands are available:
+        pwd
+        ls [ <path> ]
+        cd [ <path> ]
+        add [ <path> ]       # 可以加入復原檔案列表中
+        delete [ <path> ]    # 從復原列表拿掉檔名！並非刪除喔！
+        extract              # 開始復原動作！
+        quit
+        help
+
+ -> ls
+          455517 initramfs-3.10.0-229.el7.x86_64kdump.img
+             138 initramfs-3.10.0-229.el7.x86_64.img
+             141 initrd-plymouth.img
+             136 symvers-3.10.0-229.el7.x86_64.gz
+             135 config-3.10.0-229.el7.x86_64
+             134 System.map-3.10.0-229.el7.x86_64
+             133 .vmlinuz-3.10.0-229.el7.x86_64.hmac
+         1048704 grub2/
+             131 grub/
+
+ -> add grub
+ -> add grub2
+ -> add config-3.10.0-229.el7.x86_64
+ -> extract
+ 
+[root@study ~]# ls -l /tmp/boot3
+```
+
+### cpio 备份任何东西，需要配合 find 使用
+
+- 备份
+
+```markdown
+# find / | cpio -ocvB > /dev/st0
+```
+
+- 还原
+
+```markdown
+# cpio -idvc < /dev/st0
+```
+
+## vim 编辑器
+
+### 三个模式：
+
+- 一般指令模式（command mode）
+
+  [Ctrl] + [f] : 向下翻页
+  
+  [Ctrl] + [b] : 向上翻页
+  
+  数字 0 : 移动到当前行的最前面
+  
+  $ : 移动到当前行的最后面
+  
+  G : 移动到文件的最后一行
+  
+  gg : 移动到文件的第一行
+  
+  n<Enter> : n 为数字，光标向下移动 n 行
+  
+  :n1,n2s/word1/word2/g : n1 与 n2 为数字，在第 n1 与 n2 行之间查找 word1 这个
+  字符串，并将该字符串替换成 word2
+  
+  :1,$s/word1/word2/g : 从第一行到最后一行查找 word1 字符串，并将该字符串替换成 word2
+  
+  :1,$s/word1/word2/gc : 从第一行到最后一行查找 word1 字符串，并将该字符串替换成
+  word2 且提示是否替换
+  
+  x/X : x 向后删除一个字符，X 向前删除一个字符
+  
+  dd : 删除当前整行
+  
+  ndd : 删除光标所在的向下 n 行之间查找
+  
+  yy : 复制当前行
+  
+  nyy : 复制光标所在行到向下 n 行
+  
+  p/P : p 在光标下一行粘贴，P 在光标上一行粘贴
+  
+  u : 撤销
+  
+  [Ctrl]+r : 恢复（与撤销相对）
+  
+  . : 小数点，重复上一个动作
+
+- 编辑模式（insert mode）
+
+  i : 光标所在处插入
+  
+  I : 光标所在行的第一个非空白字符处开始插入/a/A/o/O/r/R
+  
+  a : 光标所在处的下一个字符开始插入
+  
+  A : 光标所在行的最后一个字符后开始插入
+  
+  o : 光标所在行的下一行插入
+  
+  O : 光标所在行的上一行插入
+  
+  r/R : 替换，r 替换一次，R 一直替换
+
+- 指令列命令模式（command-line mode）
+
+  ZZ: 如果文件没有更新则不保存离开，如果文件已经更改则保存离开
+  
+  :w [filename] : 另存为
+  
+  :r [filename] : 将另外一个文件的内容插入到当前文件光标的后面
+  
+  :n1,n2 w [filename] : 将 n1 到 n2 的内容存到另一个文件中
+  
+  :! command : 暂时离开 vim 执行 command 的显示结果
+  
+  :set nu : 显示行号，（:set nonu 取消显示）
+
+### vim 的额外功能
+
+#### 区块选择
+
+  v : 字符选择
+  
+  V : 行选择
+  
+  [Ctrl]+v : 区块选择
+  
+  y/d/p : 将选择的区域 复制/删除/粘贴
+
+#### 多文件编辑
+
+  :n : 编辑下一个文件
+  
+  :N : 编辑上一个文件
+  
+  :files : 列出目前这个 vim 的打开的所有文件
+
+#### vim 多窗口视图
+
+| x | x |
+|-|-|
+|:sp| 开启 |
+|[Ctrl]+w+j| 按键 |
+
+
+
+
+
+
+
+
+
+
+
+
